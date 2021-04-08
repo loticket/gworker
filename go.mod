@@ -1,4 +1,4 @@
-module gworker
+module github.com/loticket/gworker
 
 go 1.15
 
