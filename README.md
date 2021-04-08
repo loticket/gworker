@@ -17,26 +17,12 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/loticket/gworker"
 	"runtime"
 	"strconv"
+	"github.com/loticket/gworker"
 	"sync"
 	"time"
 )
-
-type MyJob struct {
-	data string
-}
-
-func NewMyJob(data string) *MyJob {
-	return &MyJob{
-		data: data,
-	}
-}
-
-func (j *MyJob) GetJobType() string {
-	return "myjob"
-}
 
 func GetGID() uint64 {
 	b := make([]byte, 64)
@@ -47,50 +33,61 @@ func GetGID() uint64 {
 	return n
 }
 
-func (j *MyJob) Run() ( error) {
+type MyJob struct {
+	data string
+}
+
+func (j *MyJob) GetName() string {
+	return "my_job"
+}
+
+func (j *MyJob) RetryCount() int {
+	return 1
+}
+
+func (j *MyJob) Delay() time.Duration {
+	return 0
+}
+
+func NewMyJob(data string) *MyJob {
+	return &MyJob{
+		data: data,
+	}
+}
+
+func (j *MyJob) Handle() error {
 	fmt.Printf("GID:%d ,%s\n", GetGID(), j.data)
-	//panic("test panic")
 	return nil
 }
 
-func (j *MyJob) Stop() {
-}
-
-func CreatedJob() *MyJob {
-	return NewMyJob("Job Creted : " + time.Now().Format("15:04:05"))
-}
-
 func main() {
-	var runOverTotal = 1
-	var mutex sync.Mutex
-	pool := gworker.NewWorkerPool(nil, time.Second*5, 100, func(err error, job gworker.Job) {
-		fmt.Println("ErrorHandle " + err.Error())
-	}, func(worker gworker.Worker, job gworker.Job) {
-		mutex.Lock()
-		runOverTotal ++
-		fmt.Println("run over" , runOverTotal)
-		mutex.Unlock()
-	})
-	pool.PreSecondDealNum(10)
+
+	var runTotal = 0
+	var total = 1000
+	mutex := sync.Mutex{}
+	pool := gworker.NewWorkerPool(nil, time.Second*5, 10,
+		func(err error, job gworker.Job) {
+
+		},
+		func(worker gworker.Worker, job gworker.Jobber) {
+			mutex.Lock()
+			runTotal++
+			mutex.Unlock()
+		})
+
+	pool.PreSecondDealNum(1)
 	pool.Run()
-
-	go func() {
-		select {
-		case <-gworker.HandleSignal():
-			break
-		}
-		pool.Stop()
-	}()
-
-	startTime := time.Now()
-	for i := 0; i < 100000&& !pool.IsStop(); i++ {
-		job := CreatedJob()
+	for i := 1; i <= total; i++ {
+		fmt.Println("add job")
+		job := NewMyJob(fmt.Sprintf("id: %d", i))
 		pool.Push(job)
 	}
 
 	pool.Stop()
-	endTime := time.Now()
-	fmt.Printf("cast time %d \n", endTime.Sub(startTime).Nanoseconds()/1000000)
+	if runTotal != total {
+		fmt.Println("push job num %d not equal run job num %d", total, runTotal)
+	}
+
 }
 
 ```
